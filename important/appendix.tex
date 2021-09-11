@@ -1,0 +1,595 @@
+
+%----------------------------------------------------------------------------------------
+%   Хавсралтууд эндээс эхэлнэ
+%----------------------------------------------------------------------------------------
+\appendix
+\addcontentsline{toc}{part}{ХАВСРАЛТ}
+
+% Хавсралтын нэр. Хавсралт гэдэг үг агуулахгүй
+\chapter{Удирдагчийн үнэлгээ}
+\includegraphics[width=14cm]{images/review.jpeg}
+% Хавсралтын нэр. Хавсралт гэдэг үг агуулахгүй
+\chapter{Кодын хэрэгжүүлэлт}
+
+\section{Форм}
+
+\subsection{useReducer болон React-Select сан ашигласан байдал}
+\begin{lstlisting}[language=Javascript, frame=single]
+import { useState, useReducer } from "react";
+import Head from "next/head";
+import styles from "../styles/Home.module.css";
+import Select from "react-select";
+import address from "../data/address";
+
+const SET_CITY = "city";
+const SET_DISTRICT = "district";
+const SET_WARD = "ward";
+
+const reducer = (state, action) => {
+  switch (action.type) {
+    case SET_CITY:
+      return {
+        city: action.index,
+        district: null,
+        ward: null,
+      };
+    case SET_DISTRICT:
+      return {
+        ...state,
+        district: action.index,
+        ward: null,
+      };
+    case SET_WARD:
+      return {
+        ...state,
+        ward: action.index,
+      };
+    default:
+      return state;
+  }
+};
+
+export default function Home() {
+  const [state, dispatch] = useReducer(reducer, {
+    city: null,
+    district: null,
+    ward: null,
+  });
+
+  const handleChange = (index, type) => {
+    dispatch({ type: type, index });
+  };
+
+  const register = (e) => {
+    e.preventDefault();
+    console.log(state);
+  };
+
+  return (
+    <div className={styles.container}>
+      <Head>
+        <title>Create Next App</title>
+      </Head>
+
+      <main className={styles.main}>
+        <div>
+          <form className={styles.grid} onSubmit={register}>
+            <label>
+              <p>Хот/Аймаг:</p>
+              <Select
+                value={address.map((i, index) => ({ ...i, index }))[state.city]}
+                onChange={(e) => handleChange(e.index, SET_CITY)}
+                options={address.map((i, index) => ({ ...i, index }))}
+                getOptionLabel={(option) => option.name}
+                getOptionValue={(option) => option.index}
+                placeholder="Сонгох"
+              />
+            </label>
+
+            <label>
+              <p>Сум/Дүүрэг:</p>
+              <Select
+                value={
+                  state.district != null
+                    ? address[state.city].districts.map((i, index) => ({
+                        ...i,
+                        index,
+                      }))[state.district]
+                    : []
+                }
+                onChange={(e) => handleChange(e.index, SET_DISTRICT)}
+                options={
+                  state.city != null
+                    ? address[state.city].districts.map((i, index) => ({
+                        ...i,
+                        index,
+                      }))
+                    : []
+                }
+                getOptionLabel={(option) => option.name}
+                getOptionValue={(option) => option.index}
+                placeholder="Сонгох"
+              />
+            </label>
+
+            <label>
+              <p>Баг/Хороо:</p>
+              <Select
+                value={
+                  state.ward != null
+                    ? address[state.city].districts[state.district].wards.map(
+                        (i, index) => ({ ...i, index })
+                      )[state.ward]
+                    : []
+                }
+                onChange={(e) => handleChange(e.index, SET_WARD)}
+                options={
+                  state.district != null
+                    ? address[state.city].districts[state.district].wards.map(
+                        (i, index) => ({ ...i, index })
+                      )
+                    : []
+                }
+                getOptionLabel={(option) => option.name}
+                getOptionValue={(option) => option.index}
+                placeholder="Сонгох"
+              />
+            </label>
+            <button className={styles.registerBtn}>Бүртгүүлэх</button>
+          </form>
+        </div>
+      </main>
+    </div>
+  );
+}
+\end{lstlisting}
+
+\subsection{Functional component дээр state ашигласан байдал}
+
+\begin{lstlisting}[language=Javascript, frame=single]
+import { useEffect, useState } from "react";
+import Head from "next/head";
+import styles from "../styles/Home.module.css";
+import axios from "axios";
+import useForm from "../utils/useForm";
+
+const fetchData = (url) => {
+  //get data from next.js api
+  return axios
+    .get(`http://localhost:3000/api/${url}`)
+    .then((res) => {
+      const results = res.data;
+      return results;
+    })
+    .catch((err) => {
+      console.error(err);
+    });
+};
+
+export default function Home() {
+  const [values, handleChange] = useForm();
+  const [data, setData] = useState({
+    cities: [],
+    districts: [],
+    wards: [],
+  });
+
+  useEffect(() => {
+    fetchData(`cities`)
+      .then((res) => {
+        setData({ ...data, cities: res });
+      })
+      .catch((err) => {
+        console.error(err);
+      });
+  }, []);
+
+  const register = (e) => {
+    e.preventDefault();
+    console.log(values);
+  };
+
+  const handleSelect = (id, type) => {
+    if (type == "city") {
+      fetchData(`cities/${id}`)
+        .then((res) => {
+          setData({ ...data, districts: res, wards: [] }); //set districts and clear wards data
+        })
+        .catch((err) => {
+          console.error(err);
+        });
+    } else if (type == "district") {
+      //get wards
+      fetchData(`cities/${values.city}/${id}`)
+        .then((res) => {
+          setData({ ...data, wards: res });
+        })
+        .catch((err) => {
+          console.error(err);
+        });
+    }
+  };
+
+  const OptionItems = (props) => {
+    const options = props.items.map((item) => {
+      return (
+        <option key={item.id} value={item.id}>
+          {item.name}
+        </option>
+      );
+    });
+
+    return options;
+  };
+
+  return (
+    <div className={styles.container}>
+      <Head>
+        <title>Create Next App</title>
+      </Head>
+
+      <main className={styles.main}>
+        <div>
+          <form className={styles.grid} onSubmit={register}>
+            <label>
+              Хот/Аймаг:
+              <select
+                value={values.city}
+                defaultValue="default"
+                name="city"
+                onChange={(e) => {
+                  handleChange(e.target.name, e.target.value);
+                  handleSelect(e.target.value, "city");
+                }}
+              >
+                <option value="default" hidden>
+                  Хот/Аймаг
+                </option>
+
+                {data.cities.length > 0 ? (
+                  <OptionItems items={data.cities} />
+                ) : null}
+
+                {/* {data.cities.map((item) => {
+                  return (
+                    <option key={item.id} value={item.name}>
+                      {item.name}
+                    </option>
+                  );
+                })} */}
+              </select>
+            </label>
+
+            <label>
+              Сум/Дүүрэг:
+              <select
+                value={values.district}
+                defaultValue="default"
+                name="district"
+                onChange={(e) => {
+                  handleChange(e.target.name, e.target.value);
+                  handleSelect(e.target.value, "district");
+                }}
+              >
+                <option value="default" hidden>
+                  Сум/Дүүрэг
+                </option>
+                {data.districts.length > 0 ? (
+                  <OptionItems items={data.districts} />
+                ) : null}
+              </select>
+            </label>
+
+            <label>
+              Баг/Хороо:
+              <select
+                value={values.ward}
+                defaultValue="default"
+                name="ward"
+                onChange={(e) => {
+                  handleChange(e.target.name, e.target.value);
+                }}
+              >
+                <option value="default" hidden>
+                  Баг/Хороо
+                </option>
+                {data.wards.length > 0 ? (
+                  <OptionItems items={data.wards} />
+                ) : null}
+              </select>
+            </label>
+            <button style={{ margin: "5px" }}>Бүртгүүлэх</button>
+          </form>
+        </div>
+      </main>
+    </div>
+  );
+}
+\end{lstlisting}
+
+\section{Toast компонент}
+
+\subsection{Toast/context.tsx - Context үүсгэх}
+\begin{lstlisting}[language=Javascript, frame=single]
+import { createContext, useReducer } from "react";
+
+import { ActionType } from "types";
+
+export interface ToastType {
+  id?: string;
+  message: string;
+  type: "success" | "info" | "warning" | "error";
+  duration?: number;
+}
+
+export const ACTION_TOAST = "TOAST";
+export const ACTION_RESET = "RESET";
+export const ACTION_CLEAR = "CLEAR";
+
+export const INITIAL_STATE: { toasts: ToastType[] } = {
+  toasts: [],
+};
+
+type Actions =
+  | (ActionType<typeof ACTION_TOAST> & { toast: ToastType })
+  | ActionType<typeof ACTION_RESET>
+  | (ActionType<typeof ACTION_CLEAR> & { id: string });
+
+export const ToastContext = createContext(null);
+ToastContext.displayName = "ToastContext";
+export const ToastControlContext = createContext(null);
+ToastControlContext.displayName = "ToastControlContext";
+
+function toast(state: typeof INITIAL_STATE, toast: ToastType): typeof state {
+  return {
+    ...state,
+    toasts: [...state.toasts, toast],
+  };
+}
+
+function clear(state: typeof INITIAL_STATE, toastId: string): typeof state {
+  return {
+    ...state,
+    toasts: state.toasts.filter((toast) => toast.id !== toastId),
+  };
+}
+
+function reducer(state = INITIAL_STATE, action: Actions): typeof state {
+  switch (action.type) {
+    case ACTION_TOAST:
+      return toast(state, action.toast);
+    case ACTION_RESET:
+      return INITIAL_STATE;
+    case ACTION_CLEAR:
+      return clear(state, action.id);
+    default:
+      return state;
+  }
+}
+
+export const ToastProvider = ({ children }) => {
+  const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
+
+  return (
+    <ToastContext.Provider value={state}>
+      <ToastControlContext.Provider value={dispatch}>
+        {children}
+      </ToastControlContext.Provider>
+    </ToastContext.Provider>
+  );
+};
+\end{lstlisting}
+
+\subsection{Toast/hooks.ts - Custom hook бичих}
+
+\begin{lstlisting}[language=Javascript, frame=single]
+import { useCallback, useContext, useMemo } from "react";
+
+import {
+  ACTION_CLEAR,
+  ACTION_TOAST,
+  ACTION_RESET,
+  ToastContext,
+  ToastControlContext,
+  ToastType,
+} from "./context";
+
+function generateToastId() {
+  return Math.random().toString(36).substr(2, 9);
+}
+
+export function useToast() {
+  const state = useContext(ToastContext);
+  if (!state) throw new TypeError("Please use within ToastProvider");
+  return state;
+}
+
+export function useToastControl() {
+  const dispatch = useContext(ToastControlContext);
+  if (!dispatch) throw new TypeError("Please use within ToastProvider");
+
+  const reset = useCallback(() => dispatch({ type: ACTION_RESET }), [dispatch]);
+
+  const toast = useCallback(
+    (toast: ToastType) => {
+      const toastId = generateToastId();
+
+      dispatch({ toast: { ...toast, id: toastId }, type: ACTION_TOAST });
+
+      setTimeout(() => {
+        dispatch({ id: toastId, type: ACTION_CLEAR });
+      }, toast.duration || 4000);
+    },
+    [dispatch]
+  );
+
+  return useMemo(() => {
+    return { reset, toast };
+  }, [toast, reset]);
+}
+\end{lstlisting}
+
+\subsection{Toast/index.ts}
+
+\begin{lstlisting}[language=Javascript, frame=single]
+export * from "./Toast";
+export * from "./context";
+export * from "./hooks";
+
+\end{lstlisting}
+
+\subsection{Toast/Toast.tsx - Үндсэн Toast компонент}
+
+\begin{lstlisting}[language=Javascript, frame=single]
+import { useState, forwardRef } from "react";
+
+import { IconButton, Snackbar } from "@material-ui/core";
+import MuiAlert, { AlertProps } from "@material-ui/core/Alert";
+import { Close as CloseIcon } from "@material-ui/icons";
+
+import { ToastType } from "./context";
+import { useToast } from "./hooks";
+
+const Alert = forwardRef<HTMLDivElement, AlertProps>(function Alert(
+  props,
+  ref
+) {
+  return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
+});
+
+export function Toast({ message, type, duration = 4000 }: ToastType) {
+  const [open, setOpen] = useState(true);
+
+  const onClose = () => setOpen(false);
+
+  const action = (
+    <IconButton
+      size="small"
+      aria-label="close"
+      color="inherit"
+      onClick={onClose}
+    >
+      <CloseIcon fontSize="small" />
+    </IconButton>
+  );
+
+  return (
+    <Snackbar
+      anchorOrigin={{ horizontal: "center", vertical: "bottom" }}
+      open={open}
+      autoHideDuration={duration}
+      onClose={onClose}
+      action={action}
+    >
+      <Alert onClose={onClose} severity={type} sx={{ width: "100%" }}>
+        {message}
+      </Alert>
+    </Snackbar>
+  );
+}
+
+export function ToastContainer() {
+  const { toasts } = useToast();
+  return toasts.map((toast) => <Toast key={toast.id} {...toast} />);
+}
+\end{lstlisting}
+\pagebreak
+\section{Toast компонент дээр интерфэйсийн автоматжуулсан тест бичсэн байдал}
+
+\subsection{tests/Toast.test.tsx}
+\begin{lstlisting}[language=Javascript, frame=single]
+import {
+  cleanup,
+  render,
+  screen,
+  waitForElementToBeRemoved,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+import { Toast } from "../../../components/Toast";
+
+jest.useFakeTimers();
+describe("Test: Toast component", () => {
+  test("show message and delete toast after close button ", async () => {
+    const message = "Hello, it's toast";
+
+    render(<Toast message={message} type="success" />);
+    expect(screen.getByText(message)).toBeInTheDocument();
+
+    userEvent.click(
+      screen.getByRole("button", {
+        name: /close/i,
+      })
+    );
+
+    await waitForElementToBeRemoved(() => screen.getByText(message));
+    expect(screen.queryByText(message)).not.toBeInTheDocument();
+  });
+
+  test("duration", async () => {
+    const cssAnimation = 300;
+    const toasts = [
+      {
+        duration: 4000,
+        message: "Toast 1",
+      },
+      {
+        duration: 5000,
+        message: "Toast 2",
+      },
+    ];
+
+    toasts.forEach((toast) =>
+      render(
+        <Toast
+          message={toast.message}
+          type="success"
+          duration={toast.duration}
+        />
+      )
+    );
+
+    expect(screen.getByText("Toast 1")).toBeInTheDocument();
+    await waitForElementToBeRemoved(() => screen.getByText("Toast 1"), {
+      timeout: toasts[0].duration + cssAnimation,
+    });
+    expect(screen.queryByText("Toast 1")).not.toBeInTheDocument();
+
+    expect(screen.getByText("Toast 2")).toBeInTheDocument();
+    await waitForElementToBeRemoved(() => screen.getByText("Toast 2"), {
+      timeout: 1000 + cssAnimation,
+    });
+    expect(screen.queryByText("Toast 2")).not.toBeInTheDocument();
+  });
+
+  test("check type", () => {
+    const types = [
+      {
+        class: "filledSuccess",
+        message: "Success toast",
+        type: "success",
+      },
+      { class: "filledError", message: "Error toast", type: "error" },
+      { class: "filledInfo", message: "Info toast", type: "info" },
+      {
+        class: "filledWarning",
+        message: "Warning toast",
+        type: "warning",
+      },
+    ];
+
+    types.forEach((opt) => {
+      const { container } = render(
+        <Toast
+          message={opt.message}
+          type={opt.type as "success" | "info" | "warning" | "error"}
+        />
+      );
+      const alert = container.firstChild;
+
+      expect(alert.firstChild).toHaveClass(`MuiAlert-${opt.class}`);
+      cleanup();
+    });
+  });
+});
+\end{lstlisting}
