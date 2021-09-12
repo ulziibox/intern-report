@@ -199,6 +199,7 @@ React-Select болон Material-UI ашигласны дараа формын �
 	\caption{Формын эцсийн байдлаар харагдаж буй байдал}
 	\label{fig:my_label}
 \end{figure}
+\pagebreak
 
 \section{Toast компонент}
 
@@ -221,3 +222,304 @@ React-Select болон Material-UI ашигласны дараа формын �
 \end{itemize}
 
 \subsection{Context үүсгэх}
+
+React-н өгөгдлийн урсгал нэг чиглэлд буюу зөвхөн эцгээс хүү компонент рүү утга дамжуулах чадвартай байдаг. Иймд нэг state-ээ нэгэндээ хамааралгүй олон өөр газарт ашиглагдаж байгаа компонентод ашиглахын тулд маш замбаараагүй дамжуулалт хийх шаардлага гардаг. Харин үүний нэг шийдэл нь Context гэх ойлголт бөгөөд бусад програмчлалын хэл дээр байдаг Global хувьсагч шиг ашиглах боломжтой. 
+
+Хамгийн эхлээд context-оо үүсгэж, түүний хийх үйлдлүүдийг зарлаж өгөх хэрэгтэй. Өмнөх хэрэгжүүлэлт дээр ашигласан useReducer-н мэдлэг хэрэг болов.
+
+\begin{lstlisting}[language=Javascript, caption=Context үүсгэх, frame=single]
+	...  
+	export const ACTION_TOAST = "TOAST";
+	export const ACTION_RESET = "RESET";
+	export const ACTION_CLEAR = "CLEAR";
+
+	export const INITIAL_STATE: { toasts: ToastType[] } = {
+		toasts: [],
+	};
+
+	type Actions =
+		| (ActionType<typeof ACTION_TOAST> & { toast: ToastType })
+		| ActionType<typeof ACTION_RESET>
+		| (ActionType<typeof ACTION_CLEAR> & { id: string });
+
+	export const ToastContext = createContext(null);
+	ToastContext.displayName = "ToastContext";
+	export const ToastControlContext = createContext(null);
+	ToastControlContext.displayName = "ToastControlContext";
+  ...
+\end{lstlisting}
+
+Toast-н анхны утгыг зарласан байдал 
+
+\begin{lstlisting}[language=Javascript, caption=Toast context-н анхны утгыг зарласан байдал, frame=single]
+	...  
+	export const INITIAL_STATE: { toasts: ToastType[] } = {
+		toasts: [],
+	};
+  ...
+\end{lstlisting}
+
+Мөн манайх төсөл дээрээ Typescript ашигладаг тул мэдээж Toast-н интерфэйсийг зааж өгөх хэрэгтэй. Ингэснээр Toast ашиглаж буй хөгжүүлэгч тухайн компонент ямар төрөлтэй ямар props-уудыг хүлээн авах шаардлагатайг хялбараар харах боломжтой. Мөн хөгжүүлэлтийн явцад гарах алдаа багасна.
+
+\begin{lstlisting}[language=Javascript, caption=Toast-н интерфэйс тодорхойлох, frame=single]
+	...  
+	export interface ToastType {
+		id?: string;
+		message: string;
+		type: "success" | "info" | "warning" | "error";
+		duration?: number;
+	}
+  ...
+\end{lstlisting}
+
+Одоо шаардлагын дагуу Toast үүсгэх, цэвэрлэх, устгах үйлдэл хийх функцын кодыг бичсэн
+
+\begin{lstlisting}[language=Javascript, caption=Toast үүсгэх функц, frame=single]
+	...  
+	function toast(state: typeof INITIAL_STATE, toast: ToastType): typeof state {
+		return {
+			...state,
+			toasts: [...state.toasts, toast],
+		};
+	}
+  ...
+\end{lstlisting}
+
+\begin{lstlisting}[language=Javascript, caption=Toast-г context-оос цэвэрлэх, frame=single]
+	...  
+	function clear(state: typeof INITIAL_STATE, toastId: string): typeof state {
+		return {
+			...state,
+			toasts: state.toasts.filter((toast) => toast.id !== toastId),
+		};
+	}
+  ...
+\end{lstlisting}
+
+Олон Toast зэрэг гарах боломжтой тул үүсгэсэн Toast бүр дээрээ uniq ID үүсгэж, түүний дараа тухайн ID-аар нь хайж олон цэвэрлэх боломжтой болно. 
+
+\begin{lstlisting}[language=Javascript, caption=Uniq ID гаргах, frame=single]
+	...  
+	function generateToastId() {
+		return Math.random().toString(36).substr(2, 9);
+	}
+  ...
+\end{lstlisting}
+
+Тухайн үйлдлийг дуудахад дээр тодорхойлж өгсөн тус тусын үүрэгтэй функцууд ажиллана. Бүх Toast-г context дотроосоо устгахдаа case дээр анхны зарласан хоосон массивыг буцааж оноож байгаа. 
+
+\begin{lstlisting}[language=Javascript, caption=useReducer дээр ажиллах үйлдлүүдийг заах, frame=single]
+	...  
+	function reducer(state = INITIAL_STATE, action: Actions): typeof state {
+		switch (action.type) {
+			case ACTION_TOAST:
+				return toast(state, action.toast);
+			case ACTION_RESET:
+				return INITIAL_STATE;
+			case ACTION_CLEAR:
+				return clear(state, action.id);
+			default:
+				return state;
+		}
+	}
+  ...
+\end{lstlisting}
+
+\subsection{Custom Hook бичих}
+
+Hook бичиж өгснөөр Toast-г бүрэн ашиглах нөхцөл нь бүрдэнэ. useToast() болон useToastControl() гэсэн хоёр төрлийн hook бичиж өгсөн. 
+
+Тухайн context-г төсөл дотор буюу index.jsx файлд wrap хийж өгөөгүй нөхцөлд console дээр ашиглах боломжгүй гэсэн алдааг гаргаж өгөх шаардлагатай.
+
+\begin{lstlisting}[language=Javascript, caption=Context-г буруу ашигласан үед алдаа гаргах, frame=single]
+	...  
+	export function useToastControl() {
+		const dispatch = useContext(ToastControlContext);
+		if (!dispatch) throw new TypeError("Please use within ToastProvider");
+
+		const reset = useCallback(() => dispatch({ type: ACTION_RESET }), [dispatch]);
+  ...
+\end{lstlisting}
+
+Toast-г шинээр үүсгэх шаардлагатай үед уг код ажиллана. Хэрэв Toast-оо үүсгэхдээ дэлгэцэнд харагдах цагийг зааж өгөөгүй бол автоматаар 4000 ms-н дараа тухайн Toast санах ой болон хэрэглэгч дээр харагдах хэсгээс цэвэрлэгдэнэ.
+
+\begin{lstlisting}[language=Javascript, caption=Toast үүсгэх үүрэгтэй hook, frame=single]
+	...  
+	const toast = useCallback(
+    (toast: ToastType) => {
+      const toastId = generateToastId();
+
+      dispatch({ toast: { ...toast, id: toastId }, type: ACTION_TOAST });
+
+      setTimeout(() => {
+        dispatch({ id: toastId, type: ACTION_CLEAR });
+      }, toast.duration || 4000);
+    },
+    [dispatch]
+  );
+  ...
+\end{lstlisting}
+
+Үүний дараа Toast компонентийнхоо интерфэйсийг Material-UI сан ашиглаж шийдэв.
+
+
+\begin{lstlisting}[language=Javascript, caption=Material-UI ашиглаж интерфэйсийг үүсгэх, frame=single]
+	...  
+	return (
+		<Snackbar
+			anchorOrigin={{ horizontal: "center", vertical: "bottom" }}
+			open={open}
+			autoHideDuration={duration}
+			onClose={onClose}
+			action={action}
+		>
+			<Alert onClose={onClose} severity={type} sx={{ width: "100%" }}>
+				{message}
+			</Alert>
+		</Snackbar>
+	);
+  ...
+\end{lstlisting}
+
+Hook бичихгүйгээр шийдэх нь Toast-г ашиглахын тулд бүтэн компонент код бичих асуудалтай байсан ба custom hook-р шийдсэнээр хөгжүүлэгч ердөө ганц функцийг л дуудаж ажиллуулахад хангалттай. Ингэснээр хөгжүүлэлтийн хурданд ч эерэгээр нөлөөлнө. 
+
+\begin{lstlisting}[language=Javascript, caption=Toast-г дуудаж ашиглаж буй байдал, frame=single]
+	...  
+	.then(
+        (res) =>
+          res.data &&
+          toast({
+            message: "Created product",
+            type: "success",
+          })
+      )
+  ...
+\end{lstlisting}
+\pagebreak
+
+\section{UI автоматжуулсан тест}
+
+Бичсэн компонентдоо тест код бичсэнээр ажиллагааг нь баталгаажуулах, алдааг илрүүлэх, хүнээр тест хийлгүүлэх шаардлагагүй болдог. Тестээ бичихдээ React багийн гишүүн Kent C. Dodds-н Jest сан дээр нэмэлт хөгжүүлэлт хийж гаргасан React Testing Library ашиглав.
+
+Хуурамч цаг ашиглаж, тест хийх stage-н хурдыг нэмэгдүүлнэ. Ингэснээр заавал Toast дээр тавигдсан 4 секундыг хүлээх хэрэггүй.
+
+\begin{lstlisting}[language=Javascript, caption=FakeTimer ашиглах, frame=single]
+	...  
+	jest.useFakeTimers();
+  ...
+\end{lstlisting}
+
+Хамгийн эхэнд хийгдэх тест бол DOM дээр зурагдаж байгаа эсэх, явуулсан string-г хэвлэж байгаа эсэх болон "ХААХ" товчлуур дээр дарагдахад цэвэрлэгдэж байгаа эсэхийг шалгах юм.
+
+\begin{lstlisting}[language=Javascript, caption=Toast компонентийг DOM дээр зурна, frame=single]
+	...  
+	const message = "Hello, it's toast";
+  render(<Toast message={message} type="success" />);
+  ...
+\end{lstlisting}
+
+\begin{lstlisting}[language=Javascript, caption=DOM дээр зурагдсан эсэхийг шалгана, frame=single]
+	...  
+	expect(screen.getByText(message)).toBeInTheDocument();
+  ...
+\end{lstlisting}
+
+\begin{lstlisting}[language=Javascript, caption=Хаах товчлуур дээр дарахад устсан эсэхийг шалгах, frame=single]
+	...  
+	userEvent.click(
+    screen.getByRole("button", {
+      name: /close/i,
+    })
+  );
+
+  await waitForElementToBeRemoved(() => screen.getByText(message));
+
+  expect(screen.queryByText(message)).not.toBeInTheDocument();
+  ...
+\end{lstlisting}
+
+Үүний дараачаар компонентийг хоёр удаа дуудаж ажиллуулаад интерфэйс дээр харагдах нийт хугацааг өөр өөрөөр зааж өгнө. Хөгжүүлэгч дурын хугацаа зааж өгсөн үед уг хугацааны үед ажиллаж байгаа эсэхийг шалгана.
+
+\begin{lstlisting}[language=Javascript, caption=Олон Toast зэрэг гаргаж дурын хугацааг зааж өгөх, frame=single]
+	...  
+	test("duration", async () => {
+    const cssAnimation = 300;
+    const toasts = [
+      {
+        duration: 4000,
+        message: "Toast 1",
+      },
+      {
+        duration: 5000,
+        message: "Toast 2",
+      },
+  ];
+
+  toasts.forEach((toast) =>
+      render(
+        <Toast
+          message={toast.message}
+          type="success"
+          duration={toast.duration}
+        />
+      )
+  );
+  ...
+\end{lstlisting}
+
+\begin{lstlisting}[language=Javascript, caption=Зааж өгсөн хугацааны дараа цэвэрлэгдэж байгаа эсэхийг шалгах, frame=single]
+	...  
+	expect(screen.getByText("Toast 1")).toBeInTheDocument();
+    await waitForElementToBeRemoved(() => screen.getByText("Toast 1"), {
+      timeout: toasts[0].duration + cssAnimation,
+    });
+  expect(screen.queryByText("Toast 1")).not.toBeInTheDocument();
+  ...
+\end{lstlisting}
+
+Хамгийн сүүлд нь миний бичсэн Toast дөрвөн өөр төрлийг хүлээж аваад тухайн төрлөөс нь хамаарч өөр загвартай харуулдаг тул уг төрлийн дагуу зурагдаж байгаа эсэхийг шалгах юм. 
+
+Toast-н хүлээж авах type-н жагсаалт:
+\begin{itemize}
+	\item success
+	\item info
+	\item warning
+	\item error
+\end{itemize}
+
+\begin{lstlisting}[language=Javascript, caption=Өгсөн type-н дагуу зурагдаж байгаа эсэхийг шалгах, frame=single]
+	...  
+	test("check type", () => {
+    const types = [
+      {
+        class: "filledSuccess",
+        message: "Success toast",
+        type: "success",
+      },
+      { class: "filledError", message: "Error toast", type: "error" },
+      { class: "filledInfo", message: "Info toast", type: "info" },
+      {
+        class: "filledWarning",
+        message: "Warning toast",
+        type: "warning",
+      },
+    ];
+
+  types.forEach((opt) => {
+    const { container } = render(
+      <Toast
+        message={opt.message}
+        type={opt.type as "success" | "info" | "warning" | "error"}
+      />
+    );
+    const alert = container.firstChild;
+
+    expect(alert.firstChild).toHaveClass(`MuiAlert-${opt.class}`);
+    cleanup();
+    });
+  });
+  ...
+\end{lstlisting}
+
+
+
